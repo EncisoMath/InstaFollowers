@@ -298,6 +298,21 @@
     };
   }
 
+  // En la categoría “No te siguen” solo contamos cuentas personales normales.
+  // Las cuentas marcadas manualmente como Personaje/Tienda se mantienen separadas.
+  function personalNotBackCount(snapshot) {
+    if (!snapshot) return 0;
+    const followers = new Set(snapshot.followers);
+    return snapshot.following.reduce((total, username) => {
+      const isSpecial = !!state.classifications[username]?.special;
+      return total + (!followers.has(username) && !isSpecial ? 1 : 0);
+    }, 0);
+  }
+
+  function personalComparisonUsers(usernames) {
+    return (usernames || []).filter(username => !state.classifications[username]?.special);
+  }
+
   function showImportResult(prev, snapshot, comp) {
     const s = snapshot.stats || computeStats(snapshot);
     if (!prev || !comp) {
@@ -308,7 +323,7 @@
           <div class="delta"><span>Siguiendo</span><strong>${formatNumber(s.following)}</strong></div>
           <div class="delta"><span>Seguidores</span><strong>${formatNumber(s.followers)}</strong></div>
           <div class="delta positive"><span>Te siguen</span><strong>${formatNumber(s.mutual)}</strong></div>
-          <div class="delta negative"><span>No te siguen</span><strong>${formatNumber(s.notBack)}</strong></div>
+          <div class="delta negative"><span>No te siguen</span><strong>${formatNumber(personalNotBackCount(snapshot))}</strong></div>
         </div>
         <p>Este será el punto de comparación para la próxima exportación que cargues.</p>
         <div class="modal-actions"><button class="primary-btn wide" type="button" data-close-modal>Ver cuentas</button></div>
@@ -322,7 +337,7 @@
         <div class="delta positive"><span>Nuevos seguidores</span><strong>+${formatNumber(comp.gainedFollowers.length)}</strong></div>
         <div class="delta negative"><span>Dejaron de seguirte</span><strong>−${formatNumber(comp.lostFollowers.length)}</strong></div>
         <div class="delta positive"><span>Ahora te siguen</span><strong>+${formatNumber(comp.nowFollowsBack.length)}</strong></div>
-        <div class="delta negative"><span>Ya no te siguen</span><strong>−${formatNumber(comp.stoppedFollowingBack.length)}</strong></div>
+        <div class="delta negative"><span>Ya no te siguen</span><strong>−${formatNumber(personalComparisonUsers(comp.stoppedFollowingBack).length)}</strong></div>
         <div class="delta"><span>Nuevos seguidos</span><strong>+${formatNumber(comp.newlyFollowing.length)}</strong></div>
         <div class="delta"><span>Dejaste de seguir</span><strong>−${formatNumber(comp.unfollowed.length)}</strong></div>
       </div>
@@ -349,7 +364,7 @@
     const q = state.profileSearch.trim().toLowerCase();
     if (q) rows = rows.filter(p => p.username.includes(q) || p.displayName.toLowerCase().includes(q));
     if (state.filter === 'mutual') rows = rows.filter(p => p.followsBack);
-    if (state.filter === 'notback') rows = rows.filter(p => !p.followsBack);
+    if (state.filter === 'notback') rows = rows.filter(p => !p.followsBack && !p.special);
     if (state.filter === 'special') rows = rows.filter(p => p.special);
     if (state.sort === 'likes') {
       rows.sort((a, b) => b.likes - a.likes || a.username.localeCompare(b.username));
@@ -386,7 +401,9 @@
     `;
   }
 
-  function renderFollowers() {
+  function renderFollowers(options = {}) {
+    const preserveDepth = !!options.preserveDepth;
+    const previousRenderLimit = state.renderLimit;
     const empty = $('#emptyFollowers');
     const content = $('#followersContent');
     const snap = state.currentSnapshot;
@@ -402,11 +419,12 @@
     $('#snapshotSubtitle').textContent = `Actualizado ${formatDate(snap.importedAt)}`;
     $('#statFollowing').textContent = formatNumber(s.following);
     $('#statMutual').textContent = formatNumber(s.mutual);
-    $('#statNotBack').textContent = formatNumber(s.notBack);
+    const personalNotBack = personalNotBackCount(snap);
+    $('#statNotBack').textContent = formatNumber(personalNotBack);
     $('#statFans').textContent = formatNumber(s.fans);
     $('#chipAll').textContent = formatNumber(s.following);
     $('#chipMutual').textContent = formatNumber(s.mutual);
-    $('#chipNotBack').textContent = formatNumber(s.notBack);
+    $('#chipNotBack').textContent = formatNumber(personalNotBack);
     $('#chipSpecial').textContent = formatNumber(snap.following.filter(u => state.classifications[u]?.special).length);
 
     const banner = $('#comparisonBanner');
@@ -419,13 +437,16 @@
     state.filteredProfiles = getFilteredProfiles();
     $('#resultCount').textContent = `${formatNumber(state.filteredProfiles.length)} ${state.filteredProfiles.length === 1 ? 'cuenta' : 'cuentas'}`;
     $('#sortBtn').textContent = state.sort === 'likes' ? 'Orden: likes' : 'Orden: usuario';
-    renderProfileChunk(true);
+    if (preserveDepth) {
+      state.renderLimit = Math.max(PAGE_SIZE, Math.min(previousRenderLimit, state.filteredProfiles.length));
+    }
+    renderProfileChunk(true, preserveDepth);
   }
 
-  function renderProfileChunk(reset = false) {
+  function renderProfileChunk(reset = false, preserveDepth = false) {
     const list = $('#profileList');
     if (reset) {
-      state.renderLimit = PAGE_SIZE;
+      if (!preserveDepth) state.renderLimit = PAGE_SIZE;
       list.innerHTML = '';
     }
     const currentCount = list.children.length;
@@ -435,12 +456,44 @@
     }
   }
 
+  function getRenderedProfileCard(username) {
+    const list = $('#profileList');
+    if (!list) return null;
+    return Array.from(list.children).find(el => el.dataset?.user === username) || null;
+  }
+
+  function captureProfileScrollAnchors(username) {
+    const card = getRenderedProfileCard(username);
+    if (!card) return [];
+    // Guardamos varias referencias. Si la tarjeta desaparece del filtro actual
+    // (p. ej. al marcarla como Tienda desde "No te siguen"), usamos la siguiente.
+    return [card, card.nextElementSibling, card.previousElementSibling]
+      .filter(el => el?.dataset?.user)
+      .map(el => ({ username: el.dataset.user, top: el.getBoundingClientRect().top }));
+  }
+
+  function restoreProfileScrollAnchors(anchors) {
+    if (!anchors?.length) return;
+    requestAnimationFrame(() => {
+      for (const anchor of anchors) {
+        const el = getRenderedProfileCard(anchor.username);
+        if (!el) continue;
+        const delta = el.getBoundingClientRect().top - anchor.top;
+        if (Math.abs(delta) > 0.5) window.scrollBy(0, delta);
+        break;
+      }
+    });
+  }
+
   async function toggleSpecial(username) {
     const u = normalizeUsername(username);
+    const anchors = captureProfileScrollAnchors(u);
     const current = !!state.classifications[u]?.special;
     state.classifications[u] = { ...(state.classifications[u] || {}), special: !current, updatedAt: new Date().toISOString() };
     await dbSet('classifications', state.classifications);
-    renderFollowers();
+    // No volvemos a las primeras 50 tarjetas al reclasificar una cuenta.
+    renderFollowers({ preserveDepth: true });
+    restoreProfileScrollAnchors(anchors);
     toast(!current ? `@${u} marcado como Personaje/Tienda` : `@${u} sin clasificación especial`);
   }
 
@@ -604,7 +657,7 @@
           <div class="history-meta">
             <span>${formatNumber(stats.followers)} seguidores</span>
             <span>${formatNumber(stats.following)} seguidos</span>
-            <span>${formatNumber(stats.notBack)} no follow-back</span>
+            <span>${formatNumber(personalNotBackCount(s))} no follow-back personal</span>
           </div>
         </div>`;
     }).join('');

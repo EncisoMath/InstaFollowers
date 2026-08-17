@@ -1,4 +1,4 @@
-const CACHE = 'instafollower-shell-v1.2.2';
+const CACHE = 'instafollower-shell-v1.2.4';
 const APP_SHELL = [
   './',
   './index.html',
