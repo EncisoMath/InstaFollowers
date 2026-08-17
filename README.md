@@ -50,7 +50,7 @@ En **Ajustes → Importar datos privados**, selecciona `InstaFollower_DATOS_PRIV
 
 ## Actualizaciones
 
-La versión de caché actual es `instafollower-shell-v1.2.4`. Al publicar nuevas versiones, cambia ese identificador para que el Service Worker descarte el shell anterior.
+La versión de caché actual es `instafollower-shell-v1.2.5`. Al publicar nuevas versiones, cambia ese identificador para que el Service Worker descarte el shell anterior.
 
 
 ## Regla de “No te siguen”
@@ -58,5 +58,12 @@ La versión de caché actual es `instafollower-shell-v1.2.4`. Al publicar nuevas
 El filtro y el contador **No te siguen** excluyen automáticamente cualquier cuenta marcada como **Personaje/Tienda**. Esas cuentas siguen disponibles en **Todos** y en su filtro independiente **Personaje/Tienda**.
 
 
-### v1.2.4 — estabilidad de scroll
+### v1.2.5 — estabilidad de scroll
 Al marcar o desmarcar una cuenta como Personaje/Tienda, la lista conserva la posición visual y la profundidad ya cargada. Esto evita saltos al reclasificar perfiles, incluso dentro del filtro **No te siguen**.
+
+
+## Cambios de la versión 1.2.5
+
+- Se actualizó el logo e ícono de la app usando la imagen proporcionada por el usuario.
+- Se reemplazaron los íconos PWA de 192x192 y 512x512.
+- Se actualizó el encabezado y la tarjeta principal para mostrar el nuevo logo.

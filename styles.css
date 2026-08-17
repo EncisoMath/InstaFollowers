@@ -65,18 +65,17 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round
 }
 .brand-row { display: flex; align-items: center; gap: 10px; }
 .brand-mark {
-  display: grid;
-  place-items: center;
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: -.5px;
-  color: #fff;
-  background: linear-gradient(145deg, #1e5fe8 0%, #0b3d91 55%, #061b42 100%);
-  border: 1px solid rgba(96,165,250,.32);
-  box-shadow: 0 8px 24px rgba(27,91,209,.28), inset 0 1px 0 rgba(255,255,255,.15);
+  object-fit: cover;
+  display: block;
+  border: 1px solid rgba(96,165,250,.28);
+  box-shadow: 0 8px 24px rgba(27,91,209,.22), 0 0 0 1px rgba(255,255,255,.03) inset;
+  background: #000;
+}
+.brand-logo {
+  background: #000;
 }
 h1 { font-size: 20px; line-height: 1; margin: 0; letter-spacing: -.45px; }
 .topbar p {
@@ -128,7 +127,7 @@ main { padding: 14px 14px calc(96px + env(safe-area-inset-bottom)); }
   border: 1px solid rgba(117,179,255,.30);
   box-shadow: 0 22px 62px rgba(16,78,184,.30), inset 0 1px 0 rgba(255,255,255,.14);
 }
-.hero-icon svg { width: 38px; height: 38px; }
+.hero-logo { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 28px; }
 .hero-card h2 { margin: 0; font-size: 23px; letter-spacing: -.6px; }
 .hero-card p { color: var(--muted); font-size: 13.5px; line-height: 1.55; margin: 11px 0 23px; max-width: 340px; }
 
