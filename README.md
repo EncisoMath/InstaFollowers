@@ -50,7 +50,7 @@ En **Ajustes → Importar datos privados**, selecciona `InstaFollower_DATOS_PRIV
 
 ## Actualizaciones
 
-La versión de caché actual es `instafollower-shell-v1.2.5`. Al publicar nuevas versiones, cambia ese identificador para que el Service Worker descarte el shell anterior.
+La versión de caché actual es `instafollower-shell-v1.2.7`. Al publicar nuevas versiones, cambia ese identificador para que el Service Worker descarte el shell anterior.
 
 
 ## Regla de “No te siguen”
@@ -58,7 +58,7 @@ La versión de caché actual es `instafollower-shell-v1.2.5`. Al publicar nuevas
 El filtro y el contador **No te siguen** excluyen automáticamente cualquier cuenta marcada como **Personaje/Tienda**. Esas cuentas siguen disponibles en **Todos** y en su filtro independiente **Personaje/Tienda**.
 
 
-### v1.2.5 — estabilidad de scroll
+### v1.2.4 — estabilidad de scroll
 Al marcar o desmarcar una cuenta como Personaje/Tienda, la lista conserva la posición visual y la profundidad ya cargada. Esto evita saltos al reclasificar perfiles, incluso dentro del filtro **No te siguen**.
 
 
@@ -67,3 +67,18 @@ Al marcar o desmarcar una cuenta como Personaje/Tienda, la lista conserva la pos
 - Se actualizó el logo e ícono de la app usando la imagen proporcionada por el usuario.
 - Se reemplazaron los íconos PWA de 192x192 y 512x512.
 - Se actualizó el encabezado y la tarjeta principal para mostrar el nuevo logo.
+
+
+## Cuentas nuevas — v1.2.6
+
+Al importar un ZIP posterior, las cuentas que aparecen por primera vez entre los seguidos respecto al snapshot inmediatamente anterior se registran como **Nuevas**. En la lista actual reciben borde amarillo, avatar amarillo y la etiqueta `Nueva`. La comparación se deriva de los snapshots guardados, por lo que se conserva al cerrar y volver a abrir la PWA.
+
+
+## Cambios de la versión 1.2.7
+
+- Botón **Bloquear** junto a Personaje/Tienda. La cuenta se guarda localmente como bloqueada antes de abrir su perfil en Instagram.
+- Filtro **Bloqueados** persistente. Las cuentas bloqueadas quedan fuera de las listas y contadores activos.
+- Nueva pestaña **Cambios** que compara cada par consecutivo de exportaciones y muestra **Te dejaron de seguir** y **Nuevos seguidores**.
+- La pestaña Cambios conserva la comparación cruda de `followers` entre ZIPs, tal como aparece en las exportaciones de Instagram.
+- Las cuatro estadísticas superiores se muestran en una sola fila de cuatro columnas.
+- Cache PWA actualizado a v1.2.7.

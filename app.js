@@ -1,4 +1,4 @@
-/* InstaFollower PWA v1.2.2 · GitHub Pages privacy build */
+/* InstaFollower PWA v1.2.7 · GitHub Pages privacy build */
 (() => {
   'use strict';
 
@@ -298,6 +298,32 @@
     };
   }
 
+  function isBlocked(username) {
+    return !!state.classifications[normalizeUsername(username)]?.blocked;
+  }
+
+  // Estadísticas visibles de la app. Los snapshots conservan el ZIP crudo,
+  // pero las cuentas marcadas como Bloqueadas dejan de formar parte de las
+  // listas y contadores activos hasta que el usuario las quite de Bloqueados.
+  function visibleStats(snapshot) {
+    if (!snapshot) return { following: 0, followers: 0, mutual: 0, notBack: 0, fans: 0 };
+    const followers = new Set(snapshot.followers.filter(u => !isBlocked(u)));
+    const following = new Set(snapshot.following.filter(u => !isBlocked(u)));
+    let mutual = 0;
+    for (const u of following) if (followers.has(u)) mutual++;
+    return {
+      following: following.size,
+      followers: followers.size,
+      mutual,
+      notBack: following.size - mutual,
+      fans: followers.size - mutual,
+    };
+  }
+
+  function unblockedUsers(usernames) {
+    return (usernames || []).filter(username => !isBlocked(username));
+  }
+
   // En la categoría “No te siguen” solo contamos cuentas personales normales.
   // Las cuentas marcadas manualmente como Personaje/Tienda se mantienen separadas.
   function personalNotBackCount(snapshot) {
@@ -305,16 +331,29 @@
     const followers = new Set(snapshot.followers);
     return snapshot.following.reduce((total, username) => {
       const isSpecial = !!state.classifications[username]?.special;
-      return total + (!followers.has(username) && !isSpecial ? 1 : 0);
+      const blocked = !!state.classifications[username]?.blocked;
+      return total + (!followers.has(username) && !isSpecial && !blocked ? 1 : 0);
     }, 0);
   }
 
   function personalComparisonUsers(usernames) {
-    return (usernames || []).filter(username => !state.classifications[username]?.special);
+    return (usernames || []).filter(username => !state.classifications[username]?.special && !isBlocked(username));
+  }
+
+  // Cuentas que aparecen por primera vez entre los seguidos del snapshot actual
+  // respecto al ZIP inmediatamente anterior. La lista se deriva de los snapshots,
+  // así que también sobrevive a recargas y restauraciones de respaldo.
+  function currentNewlyFollowingSet() {
+    const curr = state.currentSnapshot;
+    if (!curr) return new Set();
+    const idx = state.snapshots.findIndex(s => s.id === curr.id);
+    if (idx <= 0) return new Set();
+    const prev = state.snapshots[idx - 1];
+    return new Set(compareSnapshots(prev, curr)?.newlyFollowing || []);
   }
 
   function showImportResult(prev, snapshot, comp) {
-    const s = snapshot.stats || computeStats(snapshot);
+    const s = visibleStats(snapshot);
     if (!prev || !comp) {
       openModal(`
         <h2>Exportación cargada</h2>
@@ -336,10 +375,10 @@
       <div class="delta-grid">
         <div class="delta positive"><span>Nuevos seguidores</span><strong>+${formatNumber(comp.gainedFollowers.length)}</strong></div>
         <div class="delta negative"><span>Dejaron de seguirte</span><strong>−${formatNumber(comp.lostFollowers.length)}</strong></div>
-        <div class="delta positive"><span>Ahora te siguen</span><strong>+${formatNumber(comp.nowFollowsBack.length)}</strong></div>
+        <div class="delta positive"><span>Ahora te siguen</span><strong>+${formatNumber(unblockedUsers(comp.nowFollowsBack).length)}</strong></div>
         <div class="delta negative"><span>Ya no te siguen</span><strong>−${formatNumber(personalComparisonUsers(comp.stoppedFollowingBack).length)}</strong></div>
-        <div class="delta"><span>Nuevos seguidos</span><strong>+${formatNumber(comp.newlyFollowing.length)}</strong></div>
-        <div class="delta"><span>Dejaste de seguir</span><strong>−${formatNumber(comp.unfollowed.length)}</strong></div>
+        <div class="delta"><span>Nuevos seguidos</span><strong>+${formatNumber(unblockedUsers(comp.newlyFollowing).length)}</strong></div>
+        <div class="delta"><span>Dejaste de seguir</span><strong>−${formatNumber(unblockedUsers(comp.unfollowed).length)}</strong></div>
       </div>
       <p>El snapshot anterior permanece guardado en Ajustes → Historial de exportaciones.</p>
       <div class="modal-actions"><button class="primary-btn wide" type="button" data-close-modal>Ver lista actual</button></div>
@@ -350,17 +389,53 @@
     const snap = state.currentSnapshot;
     if (!snap) return [];
     const followers = new Set(snap.followers);
+    const newAccounts = currentNewlyFollowingSet();
     return snap.following.map(username => ({
       username,
       followsBack: followers.has(username),
       special: !!state.classifications[username]?.special,
+      blocked: !!state.classifications[username]?.blocked,
+      isNew: newAccounts.has(username),
       likes: state.likes[username]?.count || 0,
       displayName: state.likes[username]?.displayName || '',
     }));
   }
 
   function getFilteredProfiles() {
-    let rows = buildProfiles();
+    const snap = state.currentSnapshot;
+    if (!snap) return [];
+    const followers = new Set(snap.followers);
+    const newAccounts = currentNewlyFollowingSet();
+
+    // Bloqueados es una lista local persistente y puede contener cuentas que ya
+    // no aparecen en el ZIP actual. Por eso se construye desde classifications.
+    let rows;
+    if (state.filter === 'blocked') {
+      rows = Object.entries(state.classifications)
+        .filter(([, info]) => !!info?.blocked)
+        .map(([username, info]) => ({
+          username,
+          followsBack: followers.has(username),
+          special: !!info?.special,
+          blocked: true,
+          isNew: false,
+          likes: state.likes[username]?.count || 0,
+          displayName: state.likes[username]?.displayName || '',
+        }));
+    } else {
+      rows = snap.following
+        .filter(username => !isBlocked(username))
+        .map(username => ({
+          username,
+          followsBack: followers.has(username),
+          special: !!state.classifications[username]?.special,
+          blocked: false,
+          isNew: newAccounts.has(username),
+          likes: state.likes[username]?.count || 0,
+          displayName: state.likes[username]?.displayName || '',
+        }));
+    }
+
     const q = state.profileSearch.trim().toLowerCase();
     if (q) rows = rows.filter(p => p.username.includes(q) || p.displayName.toLowerCase().includes(q));
     if (state.filter === 'mutual') rows = rows.filter(p => p.followsBack);
@@ -379,19 +454,23 @@
       ? `<span class="likes-pill">♥ ${formatNumber(p.likes)} ${p.likes === 1 ? 'like' : 'likes'}</span>`
       : `<span class="likes-pill zero">Sin likes</span>`;
     return `
-      <article class="profile-card" data-user="${escapeHTML(p.username)}" tabindex="0" role="button" aria-label="Abrir @${escapeHTML(p.username)} en Instagram">
-        <div class="avatar">${escapeHTML(initials(p.username))}</div>
+      <article class="profile-card ${p.isNew ? 'new-account' : ''} ${p.blocked ? 'blocked-account' : ''}" data-user="${escapeHTML(p.username)}" tabindex="0" role="button" aria-label="Abrir @${escapeHTML(p.username)} en Instagram">
+        <div class="avatar ${p.isNew ? 'new-account-avatar' : ''} ${p.blocked ? 'blocked-avatar' : ''}">${escapeHTML(initials(p.username))}</div>
         <div class="profile-main">
           <div class="username">@${escapeHTML(p.username)}</div>
           <div class="meta-line">
-            <span class="badge ${p.followsBack ? 'good' : 'bad'}">${p.followsBack ? 'Te sigue' : 'No te sigue'}</span>
+            ${p.blocked ? '<span class="badge blocked-badge">Bloqueado</span>' : `<span class="badge ${p.followsBack ? 'good' : 'bad'}">${p.followsBack ? 'Te sigue' : 'No te sigue'}</span>`}
             ${p.special ? '<span class="badge special">Personaje/Tienda</span>' : ''}
+            ${p.isNew && !p.blocked ? '<span class="badge new-badge">Nueva</span>' : ''}
             ${likes}
           </div>
         </div>
         <div class="card-actions">
           <button class="tag-btn ${p.special ? 'active' : ''}" type="button" data-tag-user="${escapeHTML(p.username)}" aria-label="${p.special ? 'Quitar' : 'Marcar'} Personaje o Tienda" title="Personaje/Tienda">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7M2 7h20l-2-4H4L2 7Zm2 0v3a2 2 0 0 0 4 0V7m0 0v3a2 2 0 0 0 4 0V7m0 0v3a2 2 0 0 0 4 0V7m0 0v3a2 2 0 0 0 4 0V7"/></svg>
+          </button>
+          <button class="block-btn ${p.blocked ? 'active' : ''}" type="button" data-block-user="${escapeHTML(p.username)}" aria-label="${p.blocked ? 'Quitar de Bloqueados' : 'Bloquear'}" title="${p.blocked ? 'Quitar de Bloqueados' : 'Bloquear'}">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m6.3 6.3 11.4 11.4"/></svg>
           </button>
           <button class="open-btn" type="button" data-open-user="${escapeHTML(p.username)}" aria-label="Abrir perfil">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18 15 12 9 6"/></svg>
@@ -415,7 +494,7 @@
     }
     empty.classList.add('hidden');
     content.classList.remove('hidden');
-    const s = snap.stats || computeStats(snap);
+    const s = visibleStats(snap);
     $('#snapshotSubtitle').textContent = `Actualizado ${formatDate(snap.importedAt)}`;
     $('#statFollowing').textContent = formatNumber(s.following);
     $('#statMutual').textContent = formatNumber(s.mutual);
@@ -425,12 +504,13 @@
     $('#chipAll').textContent = formatNumber(s.following);
     $('#chipMutual').textContent = formatNumber(s.mutual);
     $('#chipNotBack').textContent = formatNumber(personalNotBack);
-    $('#chipSpecial').textContent = formatNumber(snap.following.filter(u => state.classifications[u]?.special).length);
+    $('#chipSpecial').textContent = formatNumber(snap.following.filter(u => state.classifications[u]?.special && !isBlocked(u)).length);
+    $('#chipBlocked').textContent = formatNumber(Object.values(state.classifications).filter(info => info?.blocked).length);
 
     const banner = $('#comparisonBanner');
     if (state.lastComparison && state.snapshots.length > 1) {
       const c = state.lastComparison;
-      banner.innerHTML = `<b>Desde la exportación anterior:</b> +${formatNumber(c.gainedFollowers.length)} seguidores · −${formatNumber(c.lostFollowers.length)} seguidores · ${formatNumber(c.nowFollowsBack.length)} ahora te siguen.`;
+      banner.innerHTML = `<b>Desde la exportación anterior:</b> +${formatNumber(c.gainedFollowers.length)} seguidores · −${formatNumber(c.lostFollowers.length)} seguidores · ${formatNumber(unblockedUsers(c.nowFollowsBack).length)} ahora te siguen · <span class="new-inline">${formatNumber(unblockedUsers(c.newlyFollowing).length)} cuentas nuevas</span>.`;
       banner.classList.remove('hidden');
     } else banner.classList.add('hidden');
 
@@ -495,6 +575,30 @@
     renderFollowers({ preserveDepth: true });
     restoreProfileScrollAnchors(anchors);
     toast(!current ? `@${u} marcado como Personaje/Tienda` : `@${u} sin clasificación especial`);
+  }
+
+  async function toggleBlocked(username) {
+    const u = normalizeUsername(username);
+    if (!isUsername(u)) return;
+    const anchors = captureProfileScrollAnchors(u);
+    const current = !!state.classifications[u]?.blocked;
+    const now = new Date().toISOString();
+    state.classifications[u] = {
+      ...(state.classifications[u] || {}),
+      blocked: !current,
+      updatedAt: now,
+      ...(!current ? { blockedAt: now } : { unblockedAt: now }),
+    };
+    await dbSet('classifications', state.classifications);
+    renderFollowers({ preserveDepth: true });
+    renderChanges();
+    renderHistory();
+    restoreProfileScrollAnchors(anchors);
+    toast(!current ? `@${u} añadido a Bloqueados` : `@${u} quitado de Bloqueados`);
+
+    // Se registra primero en la PWA y luego se abre Instagram. Al volver, la
+    // lista local ya refleja la acción aun cuando Instagram no exponga su estado.
+    setTimeout(() => openInstagram(u), 90);
   }
 
   function openInstagram(username) {
@@ -639,15 +743,92 @@
     `).join('');
   }
 
+  function changeUserHTML(username, kind) {
+    const u = normalizeUsername(username);
+    const lost = kind === 'lost';
+    return `
+      <article class="change-user ${lost ? 'lost' : 'gained'}" data-user="${escapeHTML(u)}" role="button" tabindex="0">
+        <div class="change-avatar">${escapeHTML(initials(u))}</div>
+        <div class="change-user-main">
+          <strong>@${escapeHTML(u)}</strong>
+          <span>${lost ? 'Te dejó de seguir' : 'Nuevo seguidor'}</span>
+        </div>
+        <button class="open-btn" type="button" data-open-user="${escapeHTML(u)}" aria-label="Abrir perfil">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18 15 12 9 6"/></svg>
+        </button>
+      </article>`;
+  }
+
+  function renderChanges() {
+    const empty = $('#changesEmpty');
+    const root = $('#changesContent');
+    if (!empty || !root) return;
+    if (state.snapshots.length < 2) {
+      empty.classList.remove('hidden');
+      root.classList.add('hidden');
+      root.innerHTML = '';
+      return;
+    }
+
+    empty.classList.add('hidden');
+    root.classList.remove('hidden');
+    const periods = [];
+    for (let i = state.snapshots.length - 1; i >= 1; i--) {
+      const prev = state.snapshots[i - 1];
+      const curr = state.snapshots[i];
+      const comp = compareSnapshots(prev, curr);
+      const lost = comp.lostFollowers;
+      const gained = comp.gainedFollowers;
+      const isLatest = i === state.snapshots.length - 1;
+      periods.push(`
+        <details class="change-period" ${isLatest ? 'open' : ''}>
+          <summary>
+            <div class="change-period-title">
+              <strong>${escapeHTML(formatDate(prev.importedAt))} → ${escapeHTML(formatDate(curr.importedAt))}</strong>
+              <span>${escapeHTML(prev.sourceName)} → ${escapeHTML(curr.sourceName)}</span>
+            </div>
+            <div class="change-period-counts">
+              <span class="lost-count">−${formatNumber(lost.length)}</span>
+              <span class="gained-count">+${formatNumber(gained.length)}</span>
+            </div>
+          </summary>
+          <div class="change-section lost-section">
+            <div class="change-section-head">
+              <div><span class="change-dot lost"></span><strong>Te dejaron de seguir</strong></div>
+              <span>${formatNumber(lost.length)}</span>
+            </div>
+            <div class="change-users">
+              ${lost.length ? lost.map(u => changeUserHTML(u, 'lost')).join('') : '<div class="empty-mini">Nadie te dejó de seguir en este periodo.</div>'}
+            </div>
+          </div>
+          <div class="change-section gained-section">
+            <div class="change-section-head">
+              <div><span class="change-dot gained"></span><strong>Nuevos seguidores</strong></div>
+              <span>${formatNumber(gained.length)}</span>
+            </div>
+            <div class="change-users">
+              ${gained.length ? gained.map(u => changeUserHTML(u, 'gained')).join('') : '<div class="empty-mini">No hubo nuevos seguidores en este periodo.</div>'}
+            </div>
+          </div>
+        </details>`);
+    }
+    root.innerHTML = periods.join('');
+  }
+
   function renderHistory() {
     const root = $('#historyList');
     if (!state.snapshots.length) {
       root.innerHTML = '<div class="empty-mini">Sin importaciones todavía.</div>';
       return;
     }
-    root.innerHTML = [...state.snapshots].reverse().map((s, idx) => {
+    root.innerHTML = [...state.snapshots].reverse().map(s => {
       const stats = s.stats || computeStats(s);
       const current = s.id === state.currentSnapshot?.id;
+      const originalIndex = state.snapshots.findIndex(x => x.id === s.id);
+      const prev = originalIndex > 0 ? state.snapshots[originalIndex - 1] : null;
+      const histComp = prev ? compareSnapshots(prev, s) : null;
+      const newCount = histComp ? unblockedUsers(histComp.newlyFollowing).length : 0;
+      const lostFollowersCount = histComp ? histComp.lostFollowers.length : 0;
       return `
         <div class="history-item">
           <div class="history-top">
@@ -658,6 +839,7 @@
             <span>${formatNumber(stats.followers)} seguidores</span>
             <span>${formatNumber(stats.following)} seguidos</span>
             <span>${formatNumber(personalNotBackCount(s))} no follow-back personal</span>
+            ${prev ? `<span class="history-new">${formatNumber(newCount)} nuevas</span><span class="history-lost">${formatNumber(lostFollowersCount)} dejaron de seguirte</span>` : ''}
           </div>
         </div>`;
     }).join('');
@@ -699,6 +881,7 @@
 
   function renderAll() {
     renderFollowers();
+    renderChanges();
     renderLikes();
     renderSettings();
   }
@@ -864,6 +1047,8 @@
     async function cardClickHandler(e) {
       const tag = e.target.closest('[data-tag-user]');
       if (tag) { e.stopPropagation(); await toggleSpecial(tag.dataset.tagUser); return; }
+      const block = e.target.closest('[data-block-user]');
+      if (block) { e.stopPropagation(); await toggleBlocked(block.dataset.blockUser); return; }
       const open = e.target.closest('[data-open-user]');
       if (open) { e.stopPropagation(); openInstagram(open.dataset.openUser); return; }
       const card = e.target.closest('.profile-card[data-user]');
@@ -871,6 +1056,12 @@
     }
     $('#profileList').addEventListener('click', cardClickHandler);
     $('#likesList').addEventListener('click', cardClickHandler);
+    $('#changesContent').addEventListener('click', e => {
+      const open = e.target.closest('[data-open-user]');
+      if (open) { e.stopPropagation(); openInstagram(open.dataset.openUser); return; }
+      const card = e.target.closest('.change-user[data-user]');
+      if (card) openInstagram(card.dataset.user);
+    });
 
     $('#profileList').addEventListener('keydown', e => {
       if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.profile-card')) {
@@ -938,6 +1129,10 @@
       $('#installBtn').classList.add('hidden');
       renderInstallHelp();
       toast('InstaFollower instalada');
+    });
+
+    window.addEventListener('pageshow', e => {
+      if (e.persisted) renderAll();
     });
 
     const io = new IntersectionObserver(entries => {

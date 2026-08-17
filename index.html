@@ -66,6 +66,7 @@
             <button class="chip" data-filter="mutual" type="button">Te sigue <span id="chipMutual">0</span></button>
             <button class="chip" data-filter="notback" type="button">No te sigue <span id="chipNotBack">0</span></button>
             <button class="chip" data-filter="special" type="button">Personaje/Tienda <span id="chipSpecial">0</span></button>
+            <button class="chip blocked-chip" data-filter="blocked" type="button">Bloqueados <span id="chipBlocked">0</span></button>
           </div>
 
           <div class="list-head">
@@ -75,6 +76,20 @@
           <div id="profileList" class="profile-list"></div>
           <div id="listSentinel" class="sentinel"></div>
         </div>
+      </section>
+
+      <section id="tab-changes" class="tab-panel" data-tab="changes">
+        <div class="section-title">
+          <div><h2>Cambios</h2><p>Compara tus seguidores entre cada exportación guardada.</p></div>
+        </div>
+        <div id="changesEmpty" class="hero-card changes-empty">
+          <div class="hero-icon changes-hero-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11m0 0-3-3m3 3-3 3M17 17H6m0 0 3 3m-3-3 3-3"/></svg>
+          </div>
+          <h2>Necesitas al menos dos ZIP</h2>
+          <p>Cuando cargues una segunda exportación, aquí verás quién te dejó de seguir y quién empezó a seguirte, comparación por comparación.</p>
+        </div>
+        <div id="changesContent" class="changes-list hidden"></div>
       </section>
 
       <section id="tab-likes" class="tab-panel" data-tab="likes">
@@ -178,6 +193,10 @@
       <button class="nav-item active" data-target="followers" type="button">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M19 8a4 4 0 0 1 0 8"/></svg>
         <span>Seguidores</span>
+      </button>
+      <button class="nav-item" data-target="changes" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11m0 0-3-3m3 3-3 3M17 17H6m0 0 3 3m-3-3 3-3"/></svg>
+        <span>Cambios</span>
       </button>
       <button class="nav-item" data-target="likes" type="button">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
