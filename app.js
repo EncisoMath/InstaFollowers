@@ -1,4 +1,4 @@
-/* InstaFollower PWA v1.2.1 · GitHub Pages build */
+/* InstaFollower PWA v1.2.2 · GitHub Pages privacy build */
 (() => {
   'use strict';
 
@@ -140,61 +140,6 @@
     return !!window.AndroidBridge || /^file:\/\/\/android_asset\//i.test(location.href);
   }
 
-  async function applyBuiltInSeed() {
-    const seed = window.INSTAFOLLOWER_SEED;
-    if (!seed || !Number(seed.version)) return;
-    const applied = Number(await dbGet('seedVersion', 0));
-    if (applied >= Number(seed.version)) return;
-
-    const now = new Date().toISOString();
-    const likesOptOut = !!(await dbGet('seedLikesOptOut', false));
-    const specialsOptOut = !!(await dbGet('seedSpecialsOptOut', false));
-
-    if (!likesOptOut && seed.likes && typeof seed.likes === 'object') {
-      const seedImportId = `builtin:${seed.version}:likes`;
-      const already = state.likeImports.some(i => i.id === seedImportId);
-      if (!already) {
-        for (const [rawUser, info] of Object.entries(seed.likes)) {
-          const u = normalizeUsername(rawUser);
-          if (!isUsername(u)) continue;
-          const old = state.likes[u] || { count: 0, displayName: '' };
-          // Built-in values are a baseline, not an extra import. Keep the larger
-          // count if the same historic CSV was already loaded manually.
-          state.likes[u] = {
-            count: Math.max(Number(old.count || 0), Number(info?.count || 0)),
-            displayName: old.displayName || info?.displayName || '',
-            lastImportedAt: old.lastImportedAt || seed.generatedAt || now,
-            builtIn: true,
-          };
-        }
-        state.likeImports.push({
-          id: seedImportId,
-          importedAt: seed.generatedAt || now,
-          sourceName: seed.likesSource || 'Likes incorporados',
-          rows: Object.values(seed.likes).reduce((n, x) => n + Number(x?.count || 0), 0),
-          fingerprint: seedImportId,
-          builtIn: true,
-        });
-      }
-    }
-
-    if (!specialsOptOut && Array.isArray(seed.specials)) {
-      for (const rawUser of seed.specials) {
-        const u = normalizeUsername(rawUser);
-        if (!isUsername(u)) continue;
-        if (state.classifications[u]?.special === undefined) {
-          state.classifications[u] = { ...(state.classifications[u] || {}), special: true, builtIn: true, updatedAt: seed.generatedAt || now };
-        }
-      }
-    }
-
-    await Promise.all([
-      dbSet('likes', state.likes),
-      dbSet('likeImports', state.likeImports),
-      dbSet('classifications', state.classifications),
-      dbSet('seedVersion', Number(seed.version)),
-    ]);
-  }
 
   async function sha256Hex(input) {
     const bytes = input instanceof ArrayBuffer ? new Uint8Array(input) : new TextEncoder().encode(String(input));
@@ -705,6 +650,72 @@
     renderSettings();
   }
 
+  async function importPrivateData(file) {
+    if (!file) return;
+    try {
+      const raw = await file.text();
+      const data = JSON.parse(raw);
+      if (data?.app !== 'InstaFollowerPrivateData' || !data.likes || !Array.isArray(data.specials)) {
+        throw new Error('Formato privado no reconocido');
+      }
+
+      const fingerprint = await sha256Hex(raw);
+      const importId = `private:${fingerprint}`;
+      const now = new Date().toISOString();
+      let likeRows = 0;
+      let likeProfiles = 0;
+      let specialsAdded = 0;
+
+      for (const [rawUser, info] of Object.entries(data.likes || {})) {
+        const u = normalizeUsername(rawUser);
+        if (!isUsername(u)) continue;
+        const incoming = Math.max(0, Number(info?.count || 0));
+        if (!incoming) continue;
+        const old = state.likes[u] || { count: 0, displayName: '' };
+        state.likes[u] = {
+          count: Math.max(Number(old.count || 0), incoming),
+          displayName: old.displayName || info?.displayName || '',
+          lastImportedAt: old.lastImportedAt || data.exportedAt || now,
+        };
+        likeRows += incoming;
+        likeProfiles += 1;
+      }
+
+      for (const rawUser of data.specials) {
+        const u = normalizeUsername(rawUser);
+        if (!isUsername(u)) continue;
+        if (!state.classifications[u]?.special) specialsAdded += 1;
+        state.classifications[u] = {
+          ...(state.classifications[u] || {}),
+          special: true,
+          updatedAt: data.exportedAt || now,
+        };
+      }
+
+      if (!state.likeImports.some(i => i.id === importId)) {
+        state.likeImports.push({
+          id: importId,
+          importedAt: data.exportedAt || now,
+          sourceName: file.name || 'Datos privados',
+          rows: likeRows,
+          fingerprint,
+          privateImport: true,
+        });
+      }
+
+      await Promise.all([
+        dbSet('likes', state.likes),
+        dbSet('likeImports', state.likeImports),
+        dbSet('classifications', state.classifications),
+      ]);
+      renderAll();
+      toast(`Datos privados importados: ${formatNumber(likeProfiles)} perfiles con likes y ${formatNumber(data.specials.length)} clasificaciones.`);
+    } catch (err) {
+      console.error(err);
+      toast('Ese archivo no es un paquete privado válido.');
+    }
+  }
+
   async function exportBackup() {
     const backup = {
       app: 'InstaFollower', version: 1, exportedAt: new Date().toISOString(),
@@ -769,6 +780,7 @@
     $('#zipInputSettings').addEventListener('change', e => { importZip(e.target.files[0]); e.target.value = ''; });
     $('#csvInput').addEventListener('change', e => { importCSV(e.target.files[0]); e.target.value = ''; });
     $('#importBackupInput').addEventListener('change', e => { importBackup(e.target.files[0]); e.target.value = ''; });
+    $('#privateDataInput').addEventListener('change', e => { importPrivateData(e.target.files[0]); e.target.value = ''; });
 
     $('#profileSearch').addEventListener('input', e => {
       state.profileSearch = e.target.value;
@@ -845,12 +857,11 @@
       if (e.target.closest('[data-close-modal]')) closeModal();
       if (e.target.id === 'confirmClearLikes') {
         state.likes = {}; state.likeImports = [];
-        await Promise.all([dbSet('likes', {}), dbSet('likeImports', []), dbSet('seedLikesOptOut', true)]);
+        await Promise.all([dbSet('likes', {}), dbSet('likeImports', [])]);
         closeModal(); renderAll(); toast('Likes borrados');
       }
       if (e.target.id === 'confirmClearAll') {
         await dbClear();
-        await Promise.all([dbSet('seedLikesOptOut', true), dbSet('seedSpecialsOptOut', true), dbSet('seedVersion', window.INSTAFOLLOWER_SEED?.version || 0)]);
         state.snapshots = []; state.currentSnapshot = null; state.classifications = {}; state.likes = {}; state.likeImports = []; state.lastComparison = null; state.settings = { openMode: 'intent' };
         closeModal(); renderAll(); toast('Datos borrados');
       }
@@ -897,7 +908,6 @@
     try {
       state.db = await openDB();
       await loadState();
-      await applyBuiltInSeed();
       if (state.snapshots.length > 1) state.lastComparison = compareSnapshots(state.snapshots.at(-2), state.snapshots.at(-1));
       bindEvents();
       renderAll();

@@ -99,7 +99,7 @@
         <div class="card import-card">
           <h3>Entrada de texto</h3>
           <p>Pega usernames, uno por línea. También acepta <code>@usuario</code> o <code>usuario,nombre</code>.</p>
-          <textarea id="likesText" rows="7" spellcheck="false" placeholder="nico_leyvas&#10;@giagarciagut&#10;ferpinzon_13,Fernando Pinzón"></textarea>
+          <textarea id="likesText" rows="7" spellcheck="false" placeholder="usuario_uno&#10;@usuario_dos&#10;usuario_tres,Nombre opcional"></textarea>
           <button id="addLikesTextBtn" class="primary-btn wide" type="button">Agregar likes</button>
         </div>
 
@@ -140,6 +140,15 @@
           <div id="historyList" class="history-list">
             <div class="empty-mini">Sin importaciones todavía.</div>
           </div>
+        </div>
+
+        <div class="card">
+          <h3>Importar datos privados</h3>
+          <p class="muted">Carga tu archivo privado de likes y cuentas Personaje/Tienda. Se combina con lo que ya tengas guardado y no modifica el historial de exportaciones.</p>
+          <label class="secondary-btn file-btn wide">
+            <input id="privateDataInput" type="file" accept=".json,application/json" hidden>
+            Importar datos privados
+          </label>
         </div>
 
         <div class="card">
@@ -191,7 +200,6 @@
   </div>
 
   <script src="zip-reader.js"></script>
-  <script src="seed-data.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

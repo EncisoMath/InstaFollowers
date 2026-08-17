@@ -1,49 +1,53 @@
 # InstaFollower
 
-PWA local para analizar una exportación de Instagram (`.zip`) y cruzar **following** vs **followers**, mantener historial entre exportaciones y asociar likes importados desde CSV/texto.
+PWA para GitHub Pages que analiza localmente una exportación de Instagram (`.zip`), cruza **following** vs **followers**, mantiene historial entre exportaciones y asocia likes importados desde CSV/texto.
+
+## Privacidad por diseño
+
+Este repositorio **NO contiene usernames, likes, clasificaciones Personaje/Tienda ni exportaciones de Instagram del usuario**. El código publicado en GitHub es únicamente la aplicación.
+
+Los ZIP, CSV, clasificaciones, likes e historial se procesan en el navegador y quedan en **IndexedDB del dispositivo**. No se envían a GitHub ni a un servidor de InstaFollower.
+
+Si tienes el archivo `InstaFollower_DATOS_PRIVADOS.json`, guárdalo fuera del repositorio. En la app ve a **Ajustes → Importar datos privados** para cargarlo una sola vez. La importación combina likes y clasificaciones con los datos locales sin tocar el historial de snapshots.
+
+> **No subas `InstaFollower_DATOS_PRIVADOS.json` a GitHub.**
 
 ## Funciones
 
 - Importa directamente el ZIP de Instagram.
 - Detecta `followers_1.json`, `followers_2.json`, etc. y `following.json`.
-- Muestra cuentas que sigues clasificadas como:
-  - **Te sigue**
-  - **No te sigue**
-  - **Personaje/Tienda**
-- Abre perfiles en la app de Instagram en Android, con fallback web.
-- Guarda snapshots en IndexedDB y compara la exportación nueva con la anterior.
+- Muestra cuentas que sigues como **Te sigue**, **No te sigue** y **Personaje/Tienda**.
+- Abre perfiles en Instagram en Android, con fallback web.
+- Guarda snapshots en IndexedDB y compara una exportación nueva con la anterior.
 - Importa likes desde CSV o texto; cada aparición del username cuenta como un like.
-- Incluye como seed inicial 227 apariciones de likes (127 usernames) y 507 cuentas marcadas inicialmente como Personaje/Tienda.
-- Funciona offline después de la primera carga gracias al Service Worker.
-- Diseño móvil vertical optimizado para Android / Galaxy S22 Ultra.
+- Importa un paquete privado JSON local sin publicarlo.
+- Funciona offline después de la primera carga mediante Service Worker.
+- Interfaz negra / azul navy optimizada para Galaxy S22 Ultra y móviles Android.
 
 ## Publicar en GitHub Pages
 
 1. Crea un repositorio, por ejemplo `InstaFollower`.
-2. Sube **todo el contenido de esta carpeta a la raíz del repositorio**, incluyendo `.github`, `icons` y `.nojekyll`.
-3. Asegúrate de que la rama principal se llame `main`.
-4. En GitHub abre **Settings → Pages**.
-5. En **Build and deployment → Source**, elige **GitHub Actions**.
-6. Ve a **Actions** y espera a que termine `Deploy InstaFollower to GitHub Pages`.
-7. GitHub mostrará la URL del sitio, normalmente:
-   `https://TU-USUARIO.github.io/InstaFollower/`
+2. Sube **todo el contenido de esta carpeta a la raíz**, incluyendo `.github`, `icons` y `.nojekyll`.
+3. No subas archivos privados de Instagram ni `InstaFollower_DATOS_PRIVADOS.json`.
+4. Asegúrate de que la rama principal sea `main`.
+5. En GitHub abre **Settings → Pages**.
+6. En **Build and deployment → Source**, selecciona **GitHub Actions**.
+7. El workflow incluido en `.github/workflows/deploy-pages.yml` publicará la aplicación.
+8. La URL será normalmente `https://TU-USUARIO.github.io/InstaFollower/`.
 
-No necesitas configurar una ruta base: todos los recursos usan URLs relativas y funcionan correctamente dentro de `/InstaFollower/`.
+Todos los recursos usan rutas relativas, así que funcionan dentro de la ruta del repositorio.
 
 ## Instalar en Chrome Android
 
-1. Abre la URL de GitHub Pages en **Chrome** en el teléfono.
-2. Espera a que cargue la app por primera vez.
-3. Si aparece el icono de instalación en InstaFollower, púlsalo.
-4. Si Chrome no muestra ese icono, abre **⋮ → Instalar aplicación** o **Añadir a pantalla principal** (el texto puede variar).
-5. Después de instalarla se abre en modo `standalone`, sin la barra normal del navegador.
+1. Abre la URL de GitHub Pages en Chrome.
+2. Espera a que cargue una vez.
+3. Pulsa el botón de instalación si aparece, o usa **⋮ → Instalar aplicación / Añadir a pantalla principal**.
+4. Una vez instalada, InstaFollower abre en modo `standalone` y mantiene el shell disponible offline.
 
-## Privacidad
+## Cargar tus datos privados
 
-La app no necesita servidor, cuenta de Instagram ni API de Instagram. Los ZIP/CSV seleccionados se procesan en el navegador y los datos persistentes quedan en IndexedDB del dispositivo.
-
-**Importante:** `seed-data.js` contiene los likes iniciales y la lista Personaje/Tienda que se solicitó precargar. Si publicas este repositorio/sitio públicamente, ese archivo también será públicamente accesible. Si prefieres mantener esos datos privados, elimina `seed-data.js` y la referencia correspondiente antes de publicar, y luego impórtalos desde la propia app.
+En **Ajustes → Importar datos privados**, selecciona `InstaFollower_DATOS_PRIVADOS.json`. El archivo se lee localmente en el navegador. Después de importarlo puedes guardarlo en un lugar privado o eliminar la copia del teléfono; la información queda persistida en IndexedDB.
 
 ## Actualizaciones
 
-Al publicar cambios, aumenta el nombre de caché en `sw.js` (por ejemplo `instafollower-shell-v1.2.1`). El Service Worker borra automáticamente las cachés de versiones anteriores.
+La versión de caché actual es `instafollower-shell-v1.2.2`. Al publicar nuevas versiones, cambia ese identificador para que el Service Worker descarte el shell anterior.
