@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0b0b10">
+  <meta name="color-scheme" content="dark">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="InstaFollower">
+  <title>InstaFollower</title>
+  <meta name="description" content="Analiza localmente seguidores, follow-back y likes de exportaciones de Instagram.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <div class="brand-row">
+          <span class="brand-mark" aria-hidden="true">IF</span>
+          <h1>InstaFollower</h1>
+        </div>
+        <p id="snapshotSubtitle">Carga una exportación de Instagram</p>
+      </div>
+      <button id="installBtn" class="icon-btn install-btn hidden" type="button" title="Instalar app" aria-label="Instalar app">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10m0 0 4-4m-4 4-4-4M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg>
+      </button>
+    </header>
+
+    <main>
+      <section id="tab-followers" class="tab-panel active" data-tab="followers">
+        <div id="emptyFollowers" class="hero-card">
+          <div class="hero-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M19 8v6m3-3h-6"/></svg>
+          </div>
+          <h2>Importa tu ZIP de Instagram</h2>
+          <p>Se leerán únicamente los JSON de seguidores y seguidos dentro de la exportación. Nada sale de este dispositivo.</p>
+          <label class="primary-btn file-btn">
+            <input id="zipInput" type="file" accept=".zip,application/zip" hidden>
+            Elegir exportación .zip
+          </label>
+        </div>
+
+        <div id="followersContent" class="hidden">
+          <div class="stats-grid">
+            <article class="stat"><span>Siguiendo</span><strong id="statFollowing">0</strong></article>
+            <article class="stat"><span>Te siguen</span><strong id="statMutual">0</strong></article>
+            <article class="stat warn"><span>No te siguen</span><strong id="statNotBack">0</strong></article>
+            <article class="stat"><span>Solo te siguen</span><strong id="statFans">0</strong></article>
+          </div>
+
+          <div id="comparisonBanner" class="compare-banner hidden"></div>
+
+          <div class="search-wrap">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="profileSearch" type="search" autocomplete="off" placeholder="Buscar usuario…">
+            <button id="clearSearch" class="clear-search hidden" type="button" aria-label="Borrar búsqueda">×</button>
+          </div>
+
+          <div id="filterChips" class="chips" role="tablist" aria-label="Filtros">
+            <button class="chip active" data-filter="all" type="button">Todos <span id="chipAll">0</span></button>
+            <button class="chip" data-filter="mutual" type="button">Te sigue <span id="chipMutual">0</span></button>
+            <button class="chip" data-filter="notback" type="button">No te sigue <span id="chipNotBack">0</span></button>
+            <button class="chip" data-filter="special" type="button">Personaje/Tienda <span id="chipSpecial">0</span></button>
+          </div>
+
+          <div class="list-head">
+            <span id="resultCount">0 cuentas</span>
+            <button id="sortBtn" class="text-btn" type="button">Orden: usuario</button>
+          </div>
+          <div id="profileList" class="profile-list"></div>
+          <div id="listSentinel" class="sentinel"></div>
+        </div>
+      </section>
+
+      <section id="tab-likes" class="tab-panel" data-tab="likes">
+        <div class="section-title">
+          <div><h2>Likes</h2><p>Importa likes desde CSV o pega nuevos usuarios.</p></div>
+        </div>
+
+        <div class="likes-summary">
+          <article><span>Likes registrados</span><strong id="likesTotal">0</strong></article>
+          <article><span>Perfiles con like</span><strong id="likesProfiles">0</strong></article>
+        </div>
+
+        <div class="card import-card">
+          <h3>Agregar desde CSV</h3>
+          <p>Reconoce el CSV creado anteriormente y cualquier archivo que tenga una columna <b>username</b>. Cada fila cuenta como un like.</p>
+          <label class="secondary-btn file-btn wide">
+            <input id="csvInput" type="file" accept=".csv,text/csv" hidden>
+            Seleccionar CSV
+          </label>
+        </div>
+
+        <div class="card import-card">
+          <h3>Entrada de texto</h3>
+          <p>Pega usernames, uno por línea. También acepta <code>@usuario</code> o <code>usuario,nombre</code>.</p>
+          <textarea id="likesText" rows="7" spellcheck="false" placeholder="nico_leyvas&#10;@giagarciagut&#10;ferpinzon_13,Fernando Pinzón"></textarea>
+          <button id="addLikesTextBtn" class="primary-btn wide" type="button">Agregar likes</button>
+        </div>
+
+        <div class="search-wrap likes-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="likesSearch" type="search" autocomplete="off" placeholder="Buscar en likes…">
+        </div>
+        <div id="likesList" class="profile-list"></div>
+        <div id="likesEmpty" class="empty-mini">Todavía no has importado likes.</div>
+      </section>
+
+      <section id="tab-settings" class="tab-panel" data-tab="settings">
+        <div class="section-title">
+          <div><h2>Ajustes</h2><p>Historial, apertura de perfiles y respaldo.</p></div>
+        </div>
+
+        <div class="card">
+          <div class="setting-row">
+            <div><h3>Nueva exportación</h3><p>Importa otro ZIP y compáralo con el estado anterior.</p></div>
+            <label class="small-btn file-btn">
+              <input id="zipInputSettings" type="file" accept=".zip,application/zip" hidden>
+              Cargar ZIP
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Abrir perfiles</h3>
+          <p class="muted">En Android se intenta abrir Instagram directamente y se usa la web como respaldo.</p>
+          <div class="segmented" id="openModeControl">
+            <button type="button" data-mode="intent" class="active">App Instagram</button>
+            <button type="button" data-mode="web">Enlace web</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Historial de exportaciones</h3>
+          <div id="historyList" class="history-list">
+            <div class="empty-mini">Sin importaciones todavía.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Respaldo local</h3>
+          <p class="muted">Exporta clasificaciones, likes, ajustes e historial a un JSON. Útil si cambias de navegador, puerto o dispositivo.</p>
+          <div class="button-stack">
+            <button id="exportBackupBtn" class="secondary-btn wide" type="button">Exportar respaldo</button>
+            <label class="secondary-btn file-btn wide">
+              <input id="importBackupInput" type="file" accept=".json,application/json" hidden>
+              Restaurar respaldo
+            </label>
+          </div>
+        </div>
+
+        <div class="card danger-zone">
+          <h3>Datos</h3>
+          <button id="clearLikesBtn" class="danger-btn wide" type="button">Borrar solo likes</button>
+          <button id="clearAllBtn" class="danger-btn wide" type="button">Borrar todos los datos</button>
+        </div>
+
+        <div id="installHelp" class="local-note"></div>
+        <p class="privacy-note">Procesamiento local · Sin inicio de sesión · Sin API de Instagram · Sin subida a servidores.</p>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Navegación principal">
+      <button class="nav-item active" data-target="followers" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M19 8a4 4 0 0 1 0 8"/></svg>
+        <span>Seguidores</span>
+      </button>
+      <button class="nav-item" data-target="likes" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
+        <span>Likes</span>
+      </button>
+      <button class="nav-item" data-target="settings" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg>
+        <span>Ajustes</span>
+      </button>
+    </nav>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <div id="modalBackdrop" class="modal-backdrop hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <button id="modalClose" class="modal-close" type="button" aria-label="Cerrar">×</button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="zip-reader.js"></script>
+  <script src="seed-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
