@@ -1,4 +1,4 @@
-/* InstaFollower PWA v1.2.0 · GitHub Pages build */
+/* InstaFollower PWA v1.2.1 · GitHub Pages build */
 (() => {
   'use strict';
 
